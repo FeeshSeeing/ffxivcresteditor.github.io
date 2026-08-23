@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FFXIV Crest Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #121216;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .app-container {
+      display: flex;
+      gap: 24px;
+      background: #1e1e24;
+      border: 1px solid #333340;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+      max-width: 900px;
+      max-height: 90vh;
+      width: 100%;
+      position: relative;
+    }
+    .preview-section { 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      gap: 16px; 
+      min-width: 256px;
+      position: sticky;
+      top: 0;
+      height: fit-content;
+    }
+    .preview-frame {
+      width: 256px;
+      height: 256px;
+      background: radial-gradient(circle, #2a2a35 0%, #111115 100%);
+      border: 2px solid #444455;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas { width: 256px; height: 256px; image-rendering: pixelated; }
+    
+    .btn {
+      width: 100%; padding: 10px; color: #fff; border: none;
+      border-radius: 6px; font-weight: 600; cursor: pointer; text-align: center;
+    }
+    .btn-save { background: #4f46e5; }
+    .btn-save:hover { background: #4338ca; }
+    .btn-tincture { background: #d97706; margin-top: 4px; }
+    .btn-tincture:hover { background: #b45309; }
+
+    .controls-section { 
+      flex: 1; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 16px; 
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .controls-section::-webkit-scrollbar { width: 6px; }
+    .controls-section::-webkit-scrollbar-track { background: #1a1a22; border-radius: 4px; }
+    .controls-section::-webkit-scrollbar-thumb { background: #444455; border-radius: 4px; }
+
+    h2 { font-size: 1.25rem; color: #fff; border-bottom: 1px solid #333340; padding-bottom: 8px; }
+    
+    .layer-group { 
+      display: flex; flex-direction: column; gap: 10px; 
+      background: #2a2a35; padding: 14px; border-radius: 8px; border: 1px solid #444455;
+    }
+    label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: #a0a0b0; }
+
+    .grid-container {
+      background: #181820; border: 1px solid #444455; border-radius: 6px; padding: 10px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .pagination { 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      gap: 6px; 
+      flex-wrap: wrap; 
+    }
+    .page-numbers-wrapper {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 280px;
+    }
+    .page-btn {
+      background: #2a2a35; border: 1px solid #555566; color: #fff;
+      width: 26px; height: 26px; border-radius: 4px; cursor: pointer;
+      display: flex; justify-content: center; align-items: center; font-weight: bold;
+      font-size: 0.8rem;
+    }
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .page-number { padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; color: #888899; }
+    .page-number.active { color: #f2a922; font-weight: bold; text-decoration: underline; }
+
+    .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .icon-tile {
+      width: 44px; height: 44px; background: #242432; border: 2px solid #3d3d52;
+      border-radius: 6px; cursor: pointer; display: flex; justify-content: center;
+      align-items: center; transition: all 0.15s ease;
+    }
+    .icon-tile:hover { border-color: #8888aa; background: #2f2f42; }
+    .icon-tile.active { border-color: #f2a922; box-shadow: 0 0 8px #f2a922; background: #38384e; }
+    .icon-tile img { width: 34px; height: 34px; object-fit: contain; }
+
+    /* Modal Overlay & Fixed Header Styling */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: transparent; display: flex;
+      justify-content: center; align-items: center; z-index: 100;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-box {
+      background: #2b2b36; border: 2px solid #555566; border-radius: 8px;
+      padding: 0 20px 20px 20px; width: 420px; max-height: 80vh; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+      position: relative;
+    }
+    .modal-box::-webkit-scrollbar { width: 6px; }
+    .modal-box::-webkit-scrollbar-track { background: #1a1a22; }
+    .modal-box::-webkit-scrollbar-thumb { background: #555566; border-radius: 4px; }
+
+    /* Fixed Sticky Header at Top of Popup */
+    .modal-header { 
+      position: sticky; 
+      top: 0; 
+      background: #2b2b36; 
+      z-index: 10;
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 16px 0 12px 0;
+      border-bottom: 1px solid #3d3d4e;
+    }
+    .modal-header h3 { font-size: 1rem; color: #fff; }
+    .close-btn { 
+      background: none; border: none; color: #aaa; font-size: 1.4rem; 
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+    .close-btn:hover { color: #fff; }
+
+    .variant-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+      background: #1a1a22; padding: 12px; border-radius: 6px; border: 1px solid #444455;
+    }
+    .variant-card {
+      width: 56px; height: 56px; border-radius: 6px; border: 2px solid #444455;
+      background: #22222d; cursor: pointer; display: flex;
+      justify-content: center; align-items: center; transition: all 0.2s;
+    }
+    .variant-card:hover { border-color: #8888aa; background: #333344; }
+    .variant-card.active { border-color: #f2a922; box-shadow: 0 0 8px #f2a922; background: #3a3a4c; }
+    .variant-card img { width: 48px; height: 48px; object-fit: contain; }
+
+    @media (max-width: 640px) {
+      .app-container { flex-direction: column; align-items: center; max-height: none; }
+      .icon-grid { grid-template-columns: repeat(4, 1fr); }
+      .preview-section { position: relative; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <div class="preview-section">
+      <div class="preview-frame">
+        <canvas id="crestCanvas" width="256" height="256"></canvas>
+      </div>
+      <button id="downloadBtn" class="btn btn-save">Save Crest Image</button>
+    </div>
+
+    <div class="controls-section">
+      <h2>FFXIV Crest Generator</h2>
+
+      <div class="layer-group">
+        <label>1. Escutcheon (Shape)</label>
+        <div class="grid-container">
+          <div class="pagination">
+            <button id="escPrevBtn" class="page-btn">&lt;</button>
+            <div id="escPageNumbers" class="page-numbers-wrapper"></div>
+            <button id="escNextBtn" class="page-btn">&gt;</button>
+          </div>
+          <div id="escutcheonGrid" class="icon-grid"></div>
+        </div>
+      </div>
+
+      <div class="layer-group">
+        <label>2. Ordinary (Pattern & Tincture)</label>
+        <div class="grid-container">
+          <div class="pagination">
+            <button id="ordPrevBtn" class="page-btn">&lt;</button>
+            <div id="ordPageNumbers" class="page-numbers-wrapper"></div>
+            <button id="ordNextBtn" class="page-btn">&gt;</button>
+          </div>
+          <div id="ordinaryGrid" class="icon-grid"></div>
+        </div>
+        <button id="openOrdTinctureBtn" class="btn btn-tincture">Ordinary Tincture</button>
+      </div>
+
+      <div class="layer-group">
+        <label>3. Charge (Emblem)</label>
+        <div class="grid-container">
+          <div class="pagination">
+            <button id="chgPrevBtn" class="page-btn">&lt;</button>
+            <div id="chgPageNumbers" class="page-numbers-wrapper"></div>
+            <button id="chgNextBtn" class="page-btn">&gt;</button>
+          </div>
+          <div id="chargeGrid" class="icon-grid"></div>
+        </div>
+        <button id="openChgTinctureBtn" class="btn btn-tincture">Charge Tincture</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tinctureModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalTitle">Tincture Options</h3>
+        <button id="closeModalBtn" class="close-btn">&times;</button>
+      </div>
+      <div id="variantGrid" class="variant-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("crestCanvas");
+    const ctx = canvas.getContext("2d");
+    
+    const ITEMS_PER_PAGE = 12;
+
+    const assetStore = {
+      escutcheons: [],
+      ordinariesByGroup: {},
+      chargesByGroup: {}
+    };
+
+    let state = {
+      selectedEscIndex: 0,
+      escPage: 1,
+
+      selectedOrdGroup: null,
+      selectedOrdVariantIndex: 1,
+      ordPage: 1,
+
+      selectedChgGroup: null,
+      selectedChgVariantIndex: 3,
+      chgPage: 1
+    };
+
+    async function loadAssetsFromManifest() {
+      try {
+        const res = await fetch('./manifest.json');
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const fileList = await res.json();
+
+        fileList.forEach(filePath => {
+          if (!filePath.toLowerCase().endsWith('.png')) return;
+
+          const normalizedPath = filePath.replace(/\\/g, '/');
+          const pathParts = normalizedPath.split('/');
+          const lowerPath = normalizedPath.toLowerCase();
+
+          if (lowerPath.includes('frames')) {
+            assetStore.escutcheons.push({ filename: pathParts[pathParts.length - 1], url: normalizedPath });
+          } else if (lowerPath.includes('backgrounds')) {
+            const groupFolder = pathParts.length > 2 ? pathParts[pathParts.length - 2] : 'default';
+            if (!assetStore.ordinariesByGroup[groupFolder]) assetStore.ordinariesByGroup[groupFolder] = [];
+            assetStore.ordinariesByGroup[groupFolder].push({ filename: pathParts[pathParts.length - 1], url: normalizedPath });
+          } else if (lowerPath.includes('emblems')) {
+            const groupFolder = pathParts.length > 2 ? pathParts[pathParts.length - 2] : 'default';
+            if (!assetStore.chargesByGroup[groupFolder]) assetStore.chargesByGroup[groupFolder] = [];
+            assetStore.chargesByGroup[groupFolder].push({ filename: pathParts[pathParts.length - 1], url: normalizedPath });
+          }
+        });
+
+        assetStore.escutcheons.sort((a, b) => a.filename.localeCompare(b.filename));
+        for (const group in assetStore.ordinariesByGroup) {
+          assetStore.ordinariesByGroup[group].sort((a, b) => a.filename.localeCompare(b.filename));
+        }
+        for (const group in assetStore.chargesByGroup) {
+          assetStore.chargesByGroup[group].sort((a, b) => a.filename.localeCompare(b.filename));
+        }
+
+        const ordGroups = Object.keys(assetStore.ordinariesByGroup);
+        const chgGroups = Object.keys(assetStore.chargesByGroup);
+
+        if (ordGroups.length > 0) state.selectedOrdGroup = ordGroups[0];
+        if (chgGroups.length > 0) state.selectedChgGroup = chgGroups[0];
+
+        renderAllGrids();
+        renderCrest();
+      } catch (err) {
+        console.error("Failed to load manifest.json. Ensure it exists in root.", err);
+      }
+    }
+
+    function updatePaginationUI(prevBtnId, nextBtnId, numbersContainerId, currentPage, totalPages, onPageChange) {
+      const prevBtn = document.getElementById(prevBtnId);
+      const nextBtn = document.getElementById(nextBtnId);
+      const container = document.getElementById(numbersContainerId);
+
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+
+      prevBtn.onclick = () => { if (currentPage > 1) onPageChange(currentPage - 1); };
+      nextBtn.onclick = () => { if (currentPage < totalPages) onPageChange(currentPage + 1); };
+
+      container.innerHTML = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const numSpan = document.createElement('span');
+        numSpan.className = `page-number ${i === currentPage ? 'active' : ''}`;
+        numSpan.textContent = i;
+        numSpan.onclick = () => onPageChange(i);
+        container.appendChild(numSpan);
+      }
+    }
+
+    function renderEscutcheonGrid() {
+      const grid = document.getElementById('escutcheonGrid');
+      grid.innerHTML = '';
+      const total = assetStore.escutcheons.length;
+      if (total === 0) return;
+
+      const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+      state.escPage = Math.max(1, Math.min(state.escPage, totalPages));
+      const startIndex = (state.escPage - 1) * ITEMS_PER_PAGE;
+      const pageItems = assetStore.escutcheons.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      pageItems.forEach((item, idx) => {
+        const globalIndex = startIndex + idx;
+        const tile = document.createElement('div');
+        tile.className = `icon-tile ${state.selectedEscIndex === globalIndex ? 'active' : ''}`;
+
+        const img = document.createElement('img');
+        img.src = item.url;
+        tile.appendChild(img);
+
+        tile.onclick = () => {
+          state.selectedEscIndex = globalIndex;
+          renderEscutcheonGrid();
+          renderCrest();
+        };
+        grid.appendChild(tile);
+      });
+
+      updatePaginationUI('escPrevBtn', 'escNextBtn', 'escPageNumbers', state.escPage, totalPages, (newPage) => {
+        state.escPage = newPage;
+        renderEscutcheonGrid();
+      });
+    }
+
+    function renderOrdinaryGrid() {
+      const grid = document.getElementById('ordinaryGrid');
+      grid.innerHTML = '';
+      const groups = Object.keys(assetStore.ordinariesByGroup);
+      if (groups.length === 0) return;
+
+      const totalPages = Math.ceil(groups.length / ITEMS_PER_PAGE);
+      state.ordPage = Math.max(1, Math.min(state.ordPage, totalPages));
+      const startIndex = (state.ordPage - 1) * ITEMS_PER_PAGE;
+      const pageGroups = groups.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      pageGroups.forEach(groupName => {
+        const tile = document.createElement('div');
+        tile.className = `icon-tile ${state.selectedOrdGroup === groupName ? 'active' : ''}`;
+
+        const variants = assetStore.ordinariesByGroup[groupName];
+        const previewVariant = variants[2] || variants[0];
+        
+        if (previewVariant) {
+          const img = document.createElement('img');
+          img.src = previewVariant.url;
+          tile.appendChild(img);
+        }
+
+        tile.onclick = () => {
+          state.selectedOrdGroup = groupName;
+          renderOrdinaryGrid();
+          renderCrest();
+        };
+        grid.appendChild(tile);
+      });
+
+      updatePaginationUI('ordPrevBtn', 'ordNextBtn', 'ordPageNumbers', state.ordPage, totalPages, (newPage) => {
+        state.ordPage = newPage;
+        renderOrdinaryGrid();
+      });
+    }
+
+    function renderChargeGrid() {
+      const grid = document.getElementById('chargeGrid');
+      grid.innerHTML = '';
+      const groups = Object.keys(assetStore.chargesByGroup);
+      if (groups.length === 0) return;
+
+      const totalPages = Math.ceil(groups.length / ITEMS_PER_PAGE);
+      state.chgPage = Math.max(1, Math.min(state.chgPage, totalPages));
+      const startIndex = (state.chgPage - 1) * ITEMS_PER_PAGE;
+      const pageGroups = groups.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      pageGroups.forEach(groupName => {
+        const tile = document.createElement('div');
+        tile.className = `icon-tile ${state.selectedChgGroup === groupName ? 'active' : ''}`;
+
+        const firstVariant = assetStore.chargesByGroup[groupName][0];
+        if (firstVariant) {
+          const img = document.createElement('img');
+          img.src = firstVariant.url;
+          tile.appendChild(img);
+        }
+
+        tile.onclick = () => {
+          state.selectedChgGroup = groupName;
+          renderChargeGrid();
+          renderCrest();
+        };
+        grid.appendChild(tile);
+      });
+
+      updatePaginationUI('chgPrevBtn', 'chgNextBtn', 'chgPageNumbers', state.chgPage, totalPages, (newPage) => {
+        state.chgPage = newPage;
+        renderChargeGrid();
+      });
+    }
+
+    function renderAllGrids() {
+      renderEscutcheonGrid();
+      renderOrdinaryGrid();
+      renderChargeGrid();
+    }
+
+    function openTinctureModal(type) {
+      const grid = document.getElementById('variantGrid');
+      const modalTitle = document.getElementById('modalTitle');
+      grid.innerHTML = '';
+
+      let variants = [];
+      let activeIndex = 0;
+
+      if (type === 'ordinary') {
+        modalTitle.textContent = "Ordinary Tincture";
+        if (state.selectedOrdGroup && assetStore.ordinariesByGroup[state.selectedOrdGroup]) {
+          variants = assetStore.ordinariesByGroup[state.selectedOrdGroup];
+          activeIndex = state.selectedOrdVariantIndex;
+        }
+      } else if (type === 'charge') {
+        modalTitle.textContent = "Charge Tincture";
+        if (state.selectedChgGroup && assetStore.chargesByGroup[state.selectedChgGroup]) {
+          variants = assetStore.chargesByGroup[state.selectedChgGroup];
+          activeIndex = state.selectedChgVariantIndex;
+        }
+      }
+
+      if (variants.length === 0) return;
+
+      variants.forEach((variant, idx) => {
+        const card = document.createElement('div');
+        card.className = `variant-card ${idx === activeIndex ? 'active' : ''}`;
+        
+        const img = document.createElement('img');
+        img.src = variant.url;
+        card.appendChild(img);
+
+        card.onclick = () => {
+          if (type === 'ordinary') state.selectedOrdVariantIndex = idx;
+          if (type === 'charge') state.selectedChgVariantIndex = idx;
+
+          Array.from(grid.children).forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          renderCrest();
+        };
+
+        grid.appendChild(card);
+      });
+
+      document.getElementById('tinctureModal').classList.add('open');
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve) => {
+        if (!src) return resolve(null);
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    }
+
+    async function renderCrest() {
+      let escSrc = null;
+      if (assetStore.escutcheons[state.selectedEscIndex]) {
+        escSrc = assetStore.escutcheons[state.selectedEscIndex].url;
+      }
+
+      let ordSrc = null;
+      if (state.selectedOrdGroup && assetStore.ordinariesByGroup[state.selectedOrdGroup]) {
+        const vars = assetStore.ordinariesByGroup[state.selectedOrdGroup];
+        const v = vars[state.selectedOrdVariantIndex] || vars[0];
+        if (v) ordSrc = v.url;
+      }
+
+      let chgSrc = null;
+      if (state.selectedChgGroup && assetStore.chargesByGroup[state.selectedChgGroup]) {
+        const vars = assetStore.chargesByGroup[state.selectedChgGroup];
+        const v = vars[state.selectedChgVariantIndex] || vars[0];
+        if (v) chgSrc = v.url;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const [ordImg, escImg, chgImg] = await Promise.all([
+        loadImage(ordSrc), loadImage(escSrc), loadImage(chgSrc)
+      ]);
+
+      if (ordImg) ctx.drawImage(ordImg, 0, 0, canvas.width, canvas.height);
+      if (escImg) ctx.drawImage(escImg, 0, 0, canvas.width, canvas.height);
+      if (chgImg) ctx.drawImage(chgImg, 0, 0, canvas.width, canvas.height);
+    }
+
+    function init() {
+      document.getElementById('openOrdTinctureBtn').onclick = () => openTinctureModal('ordinary');
+      document.getElementById('openChgTinctureBtn').onclick = () => openTinctureModal('charge');
+      
+      document.getElementById('closeModalBtn').onclick = () => {
+        document.getElementById('tinctureModal').classList.remove('open');
+      };
+
+      document.getElementById("downloadBtn").onclick = () => {
+        const link = document.createElement('a');
+        link.download = 'ffxiv-crest.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+
+      loadAssetsFromManifest();
+    }
+
+    init();
+  </script>
+</body>
+</html>
